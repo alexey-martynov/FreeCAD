@@ -31,6 +31,7 @@ __url__    = "https://www.freecad.org"
 #  for Arch Structure elements
 
 import csv
+from math import sin, cos, pi
 import os
 
 import FreeCAD
@@ -107,6 +108,8 @@ def makeProfile(profile=[0,'REC','REC100x100','R',100,100]):
         _ProfileL(obj, profile)
     elif profile[3]=="T":
         _ProfileT(obj, profile)
+    elif profile[3]=="GostRH":
+        _ProfileGostRH(obj, profile)
     else :
         print("Profile not supported")
     if FreeCAD.GuiUp:
@@ -375,6 +378,50 @@ class _ProfileRH(_Profile):
         obj.Placement = pl
 
 
+class _ProfileGostRH(_Profile):
+
+    '''A parametric Rectangular hollow beam profile according to Russian Standard GOST-32931-2015. Profile data: [width, height, thickness, radius]'''
+
+    def __init__(self,obj, profile):
+        obj.addProperty("App::PropertyLength","Width","Draft",QT_TRANSLATE_NOOP("App::Property","Width of the beam")).Width = profile[4]
+        obj.addProperty("App::PropertyLength","Height","Draft",QT_TRANSLATE_NOOP("App::Property","Height of the beam")).Height = profile[5]
+        obj.addProperty("App::PropertyLength","Thickness","Draft",QT_TRANSLATE_NOOP("App::Property","Thickness of the sides")).Thickness = profile[6]
+        obj.addProperty("App::PropertyLength","Radius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius of the cornder")).Radius = profile[7]
+        _Profile.__init__(self,obj,profile)
+
+    def execute(self,obj):
+        import Part
+        pl = obj.Placement
+
+        w = obj.Width.Value/2
+        h = obj.Height.Value/2
+        thickness = obj.Thickness.Value
+        r = obj.Radius.Value
+
+        s = 1-sin(pi/4)
+        c = 1-cos(pi/4)
+        p = Part.Shape([Part.LineSegment(Vector(-w+r,-h,0),Vector(w-r,-h,0)),Part.Arc(Vector(w-r,-h,0),Vector(w-r*c,-h+r*s,0),Vector(w,-h+r,0)),
+                        Part.LineSegment(Vector(w,-h+r,0),Vector(w,h-r,0)),Part.Arc(Vector(w,h-r,0),Vector(w-r*c,h-r*s,0),Vector(w-r,h,0)),
+                        Part.LineSegment(Vector(w-r,h,0),Vector(-w+r,h,0)),Part.Arc(Vector(-w+r,h,0),Vector(-w+r*c,h-r*s,0),Vector(-w,h-r,0)),
+                        Part.LineSegment(Vector(-w,h-r,0),Vector(-w,-h+r,0)),Part.Arc(Vector(-w,-h+r,0),Vector(-w+r*c,-h+r*s,0),Vector(-w+r,-h,0))])
+
+        w -= thickness
+        h -= thickness
+        r -= thickness
+        q = Part.Shape([Part.LineSegment(Vector(-w+r,-h,0),Vector(w-r,-h,0)),Part.Arc(Vector(w-r,-h,0),Vector(w-r*c,-h+r*s,0),Vector(w,-h+r,0)),
+                        Part.LineSegment(Vector(w,-h+r,0),Vector(w,h-r,0)),Part.Arc(Vector(w,h-r,0),Vector(w-r*c,h-r*s,0),Vector(w-r,h,0)),
+                        Part.LineSegment(Vector(w-r,h,0),Vector(-w+r,h,0)),Part.Arc(Vector(-w+r,h,0),Vector(-w+r*c,h-r*s,0),Vector(-w,h-r,0)),
+                        Part.LineSegment(Vector(-w,h-r,0),Vector(-w,-h+r,0)),Part.Arc(Vector(-w,-h+r,0),Vector(-w+r*c,-h+r*s,0),Vector(-w+r,-h,0))])
+        ##r = Part.Face([p,q])
+        ##r.reverse()
+        p = Part.Face(Part.Wire(p.Edges))
+        q = Part.Face(Part.Wire(q.Edges))
+        r = p.cut(q)
+        obj.Shape = r
+        obj.Placement = pl
+
+
+
 class _ProfileU(_Profile):
 
     '''A parametric U profile. Profile data: [width, height, web thickness, flange thickness] (see  https://en.wikipedia.org/wiki/Structural_channel for reference)'''
@@ -515,6 +562,8 @@ class ProfileTaskPanel:
             self.type = "L"
         elif isinstance(self.obj.Proxy,_ProfileT):
             self.type = "T"
+        elif isinstance(self.obj.Proxy,_ProfileGostRH):
+            self.type = "GostRH"
         else:
             self.type = "Building Element Proxy"
         self.form = QtGui.QWidget()
@@ -593,6 +642,8 @@ class ProfileTaskPanel:
                 _ProfileL(self.obj, self.Profile)
             elif self.Profile[3]=="T":
                 _ProfileT(self.obj, self.Profile)
+            elif self.Profile[3]=="GostRH":
+                _ProfileGostRH(self.obj, self.Profile)
             else:
                 print("Profile not supported")
 
