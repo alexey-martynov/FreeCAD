@@ -110,6 +110,8 @@ def makeProfile(profile=[0,'REC','REC100x100','R',100,100]):
         _ProfileT(obj, profile)
     elif profile[3]=="GostRH":
         _ProfileGostRH(obj, profile)
+    elif profile[3]=="GostAngle":
+        _ProfileGostAngle(obj, profile)
     else :
         print("Profile not supported")
     if FreeCAD.GuiUp:
@@ -386,7 +388,7 @@ class _ProfileGostRH(_Profile):
         obj.addProperty("App::PropertyLength","Width","Draft",QT_TRANSLATE_NOOP("App::Property","Width of the beam")).Width = profile[4]
         obj.addProperty("App::PropertyLength","Height","Draft",QT_TRANSLATE_NOOP("App::Property","Height of the beam")).Height = profile[5]
         obj.addProperty("App::PropertyLength","Thickness","Draft",QT_TRANSLATE_NOOP("App::Property","Thickness of the sides")).Thickness = profile[6]
-        obj.addProperty("App::PropertyLength","Radius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius of the cornder")).Radius = profile[7]
+        obj.addProperty("App::PropertyLength","Radius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius of the corner")).Radius = profile[7]
         _Profile.__init__(self,obj,profile)
 
     def execute(self,obj):
@@ -420,6 +422,44 @@ class _ProfileGostRH(_Profile):
         obj.Shape = r
         obj.Placement = pl
 
+
+class _ProfileGostAngle(_Profile):
+
+    '''A parametric Angular beam profile according to Russian Standards GOST-8509-93 and 8510-86. Profile data: [width, height, thickness, angle radius, border radius]'''
+
+    def __init__(self,obj, profile):
+        obj.addProperty("App::PropertyLength","Width","Draft",QT_TRANSLATE_NOOP("App::Property","Width of the beam")).Width = profile[4]
+        obj.addProperty("App::PropertyLength","Height","Draft",QT_TRANSLATE_NOOP("App::Property","Height of the beam")).Height = profile[5]
+        obj.addProperty("App::PropertyLength","Thickness","Draft",QT_TRANSLATE_NOOP("App::Property","Thickness of the sides")).Thickness = profile[6]
+        obj.addProperty("App::PropertyLength","AngleRadius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius of the inner corner")).AngleRadius = profile[7]
+        obj.addProperty("App::PropertyLength","BorderRadius","Draft",QT_TRANSLATE_NOOP("App::Property","Radius of the border fillet")).BorderRadius = profile[8]
+        _Profile.__init__(self,obj,profile)
+
+    def execute(self,obj):
+        import Part
+        pl = obj.Placement
+
+        w = obj.Width.Value
+        h = obj.Height.Value
+        thickness = obj.Thickness.Value
+        r = obj.AngleRadius.Value
+        br = obj.BorderRadius.Value
+
+        s = 1-sin(pi/4)
+        c = 1-cos(pi/4)
+        p = Part.Shape([Part.LineSegment(Vector(0,0,0),Vector(w,0,0)),
+                        Part.LineSegment(Vector(w,0,0),Vector(w,thickness-br,0)),
+                        Part.Arc(Vector(w,thickness-br,0),Vector(w-br*c,thickness-br*s,0),Vector(w-br,thickness,0)),
+                        Part.LineSegment(Vector(w-br,thickness,0),Vector(thickness+r,thickness,0)),
+                        Part.Arc(Vector(thickness+r,thickness,0),Vector(thickness+r*c,thickness+r*s,0),Vector(thickness,thickness+r,0)),
+                        Part.LineSegment(Vector(thickness,thickness+r,0),Vector(thickness,h-br,0)),
+                        Part.Arc(Vector(thickness,h-br,0),Vector(thickness-br*c,h-br*s,0),Vector(thickness-br,h,0)),
+                        Part.LineSegment(Vector(thickness-br,h,0),Vector(0,h,0)),
+                        Part.LineSegment(Vector(0,h,0),Vector(0,0,0))
+                        ])
+
+        obj.Shape = Part.Face(Part.Wire(p.Edges))
+        obj.Placement = pl
 
 
 class _ProfileU(_Profile):
